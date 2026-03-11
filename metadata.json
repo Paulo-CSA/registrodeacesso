@@ -1,0 +1,5 @@
+{
+  "name": "Registro de Acesso - CPD",
+  "description": "Aplicação para registro e controle de acesso ao Centro de Processamento de Dados (CPD).",
+  "requestFramePermissions": []
+}
