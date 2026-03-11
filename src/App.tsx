@@ -178,31 +178,39 @@ export default function App() {
               )}
             </div>
           </div>
-          <div className="flex items-center gap-3">
-            {!isManagerMode && (
+            <div className="flex items-center gap-3">
+              {isManagerMode ? (
+                <button 
+                  onClick={() => setIsManagerMode(false)}
+                  className="flex items-center gap-2 px-6 py-4 border border-red-500/30 bg-red-500/10 text-red-400 rounded-full hover:bg-red-500/20 transition-all active:scale-95 text-xs font-bold uppercase tracking-widest"
+                >
+                  <X size={18} />
+                  Sair da Gerência
+                </button>
+              ) : (
+                <button 
+                  onClick={() => setShowPasswordModal(true)}
+                  className="p-3 border border-white/10 rounded-full hover:bg-white/5 transition-colors text-white/60 hover:text-white"
+                  title="Acesso Gerencial"
+                >
+                  <AlertTriangle size={20} />
+                </button>
+              )}
               <button 
-                onClick={() => setShowPasswordModal(true)}
-                className="p-3 border border-white/10 rounded-full hover:bg-white/5 transition-colors text-white/60 hover:text-white"
-                title="Acesso Gerencial"
+                onClick={() => setIsFormOpen(true)}
+                className="group flex items-center gap-3 bg-white text-black px-8 py-4 rounded-full hover:bg-[#E4E3E0] transition-all active:scale-95 shadow-2xl shadow-white/10"
               >
-                <AlertTriangle size={20} />
+                <Plus size={20} />
+                <span className="font-bold uppercase text-xs tracking-widest">Novo Registro</span>
               </button>
-            )}
-            <button 
-              onClick={() => setIsFormOpen(true)}
-              className="group flex items-center gap-3 bg-white text-black px-8 py-4 rounded-full hover:bg-[#E4E3E0] transition-all active:scale-95 shadow-2xl shadow-white/10"
-            >
-              <Plus size={20} />
-              <span className="font-bold uppercase text-xs tracking-widest">Novo Registro</span>
-            </button>
-          </div>
+            </div>
         </header>
 
         <main className="p-8 max-w-7xl mx-auto">
           {/* Filters & Stats */}
           <div className="flex flex-col lg:flex-row gap-8 mb-12">
             {/* Stats */}
-            <div className="flex-[2] grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="flex-[2] grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="border border-white/10 p-6 rounded-3xl bg-white/5 backdrop-blur-xl">
                 <p className="text-[10px] uppercase tracking-widest opacity-40 font-mono mb-2">Total de Acessos</p>
                 <p className="text-4xl font-serif italic text-white">{logs.length}</p>
@@ -213,10 +221,6 @@ export default function App() {
                 <p className="text-[10px] opacity-30 font-mono mt-1">
                   {logs[0] ? new Date(logs[0].date).toLocaleDateString('pt-BR') : ''}
                 </p>
-              </div>
-              <div className="border border-white/10 p-6 rounded-3xl bg-white/5 backdrop-blur-xl">
-                <p className="text-[10px] uppercase tracking-widest opacity-40 font-mono mb-2">Filtrados</p>
-                <p className="text-4xl font-serif italic text-white">{filteredLogs.length}</p>
               </div>
             </div>
 
