@@ -11,7 +11,11 @@ import {
   ArrowRight, 
   Trash2,
   CheckCircle2,
-  X
+  X,
+  Search,
+  ChevronLeft,
+  ChevronRight,
+  Eye
 } from 'lucide-react';
 
 interface AccessLog {
@@ -36,10 +40,14 @@ export default function App() {
   const [managerPassword, setManagerPassword] = useState('');
   const [filterDateStart, setFilterDateStart] = useState('');
   const [filterDateEnd, setFilterDateEnd] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedLog, setSelectedLog] = useState<AccessLog | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const logsPerPage = 5;
   
   const [formData, setFormData] = useState({
     visitor_name: '',
-    date: new Date().toISOString().split('T')[0],
+    date: new Date().toLocaleDateString('en-CA'),
     entry_time: '',
     exit_time: '',
     activity: '',
@@ -64,19 +72,36 @@ export default function App() {
   };
 
   const filteredLogs = logs.filter(log => {
-    if (!filterDateStart && !filterDateEnd) return true;
-    const logDate = new Date(log.date);
-    const start = filterDateStart ? new Date(filterDateStart) : null;
-    const end = filterDateEnd ? new Date(filterDateEnd) : null;
-    
-    if (start && logDate < start) return false;
-    if (end && logDate > end) return false;
+    // Date filter
+    if (filterDateStart || filterDateEnd) {
+      const logDate = new Date(log.date);
+      const start = filterDateStart ? new Date(filterDateStart) : null;
+      const end = filterDateEnd ? new Date(filterDateEnd) : null;
+      
+      if (start && logDate < start) return false;
+      if (end && logDate > end) return false;
+    }
+
+    // Search filter
+    if (searchTerm) {
+      return log.visitor_name.toLowerCase().includes(searchTerm.toLowerCase());
+    }
+
     return true;
   });
 
+  // Pagination logic
+  const totalPages = Math.ceil(filteredLogs.length / logsPerPage);
+  const indexOfLastLog = currentPage * logsPerPage;
+  const indexOfFirstLog = indexOfLastLog - logsPerPage;
+  const currentLogs = filteredLogs.slice(indexOfFirstLog, indexOfLastLog);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, filterDateStart, filterDateEnd]);
+
   const handleManagerLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    // Senha padrão para demonstração, pode ser movida para env futuramente
     if (managerPassword === 'admin123') {
       setIsManagerMode(true);
       setShowPasswordModal(false);
@@ -99,7 +124,7 @@ export default function App() {
         setIsFormOpen(false);
         setFormData({
           visitor_name: '',
-          date: new Date().toISOString().split('T')[0],
+          date: new Date().toLocaleDateString('en-CA'),
           entry_time: '',
           exit_time: '',
           activity: '',
@@ -112,7 +137,8 @@ export default function App() {
     }
   };
 
-  const handleValidate = async (id: number, currentStatus: number) => {
+  const handleValidate = async (e: React.MouseEvent, id: number, currentStatus: number) => {
+    e.stopPropagation();
     if (!isManagerMode) {
       setShowPasswordModal(true);
       return;
@@ -131,7 +157,8 @@ export default function App() {
     }
   };
 
-  const handleDelete = async (id: number) => {
+  const handleDelete = async (e: React.MouseEvent, id: number) => {
+    e.stopPropagation();
     if (!isManagerMode) {
       setShowPasswordModal(true);
       return;
@@ -140,16 +167,23 @@ export default function App() {
     try {
       const response = await fetch(`/api/logs/${id}`, { method: 'DELETE' });
       if (response.ok) {
-        fetchLogs();
+        // Update local state immediately for better UX
+        setLogs(prev => prev.filter(log => log.id !== id));
+        if (selectedLog?.id === id) {
+          setSelectedLog(null);
+        }
+      } else {
+        const errorData = await response.json();
+        alert(`Erro ao excluir: ${errorData.error || 'Erro desconhecido'}`);
       }
     } catch (error) {
       console.error('Error deleting log:', error);
+      alert('Erro de conexão ao tentar excluir.');
     }
   };
 
   return (
     <div className="min-h-screen bg-[#0f172a] text-[#f1f5f9] font-sans selection:bg-white selection:text-black relative overflow-x-hidden">
-      {/* Background Image with Overlay */}
       <div 
         className="fixed inset-0 z-0 opacity-10 pointer-events-none"
         style={{ 
@@ -159,10 +193,8 @@ export default function App() {
         }}
       />
       <div className="fixed inset-0 z-0 bg-gradient-to-br from-[#0f172a] via-[#1e293b] to-[#0f172a] opacity-90 pointer-events-none" />
-      <div className="fixed inset-0 z-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-5 pointer-events-none" />
-
+      
       <div className="relative z-10">
-        {/* Header */}
         <header className="border-b border-white/5 p-8 flex flex-col md:flex-row justify-between items-start md:items-end gap-6 bg-slate-900/40 backdrop-blur-xl">
           <div>
             <h1 className="font-sans font-black text-5xl tracking-tighter uppercase leading-none text-white">
@@ -178,38 +210,36 @@ export default function App() {
               )}
             </div>
           </div>
-            <div className="flex items-center gap-3">
-              {isManagerMode ? (
-                <button 
-                  onClick={() => setIsManagerMode(false)}
-                  className="flex items-center gap-2 px-6 py-4 border border-red-500/30 bg-red-500/10 text-red-400 rounded-full hover:bg-red-500/20 transition-all active:scale-95 text-xs font-bold uppercase tracking-widest"
-                >
-                  <X size={18} />
-                  Sair da Gerência
-                </button>
-              ) : (
-                <button 
-                  onClick={() => setShowPasswordModal(true)}
-                  className="p-3 border border-white/10 rounded-full hover:bg-white/5 transition-colors text-white/60 hover:text-white"
-                  title="Acesso Gerencial"
-                >
-                  <AlertTriangle size={20} />
-                </button>
-              )}
+          <div className="flex items-center gap-3">
+            {isManagerMode ? (
               <button 
-                onClick={() => setIsFormOpen(true)}
-                className="group flex items-center gap-3 bg-white text-black px-8 py-4 rounded-full hover:bg-[#E4E3E0] transition-all active:scale-95 shadow-2xl shadow-white/10"
+                onClick={() => setIsManagerMode(false)}
+                className="flex items-center gap-2 px-6 py-4 border border-red-500/30 bg-red-500/10 text-red-400 rounded-full hover:bg-red-500/20 transition-all active:scale-95 text-xs font-bold uppercase tracking-widest"
               >
-                <Plus size={20} />
-                <span className="font-bold uppercase text-xs tracking-widest">Novo Registro</span>
+                <X size={18} />
+                Sair da Gerência
               </button>
-            </div>
+            ) : (
+              <button 
+                onClick={() => setShowPasswordModal(true)}
+                className="p-3 border border-white/10 rounded-full hover:bg-white/5 transition-colors text-white/60 hover:text-white"
+                title="Acesso Gerencial"
+              >
+                <AlertTriangle size={20} />
+              </button>
+            )}
+            <button 
+              onClick={() => setIsFormOpen(true)}
+              className="group flex items-center gap-3 bg-white text-black px-8 py-4 rounded-full hover:bg-[#E4E3E0] transition-all active:scale-95 shadow-2xl shadow-white/10"
+            >
+              <Plus size={20} />
+              <span className="font-bold uppercase text-xs tracking-widest">Novo Registro</span>
+            </button>
+          </div>
         </header>
 
         <main className="p-8 max-w-7xl mx-auto">
-          {/* Filters & Stats */}
           <div className="flex flex-col lg:flex-row gap-8 mb-12">
-            {/* Stats */}
             <div className="flex-[2] grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="border border-white/10 p-6 rounded-3xl bg-white/5 backdrop-blur-xl">
                 <p className="text-[10px] uppercase tracking-widest opacity-40 font-mono mb-2">Total de Acessos</p>
@@ -217,14 +247,13 @@ export default function App() {
               </div>
               <div className="border border-white/10 p-6 rounded-3xl bg-white/5 backdrop-blur-xl">
                 <p className="text-[10px] uppercase tracking-widest opacity-40 font-mono mb-2">Última Visita</p>
-                <p className="text-xl font-bold text-white truncate">{logs[0]?.visitor_name || '---'}</p>
+                <p className="text-xl font-bold text-white truncate">{filteredLogs[0]?.visitor_name || '---'}</p>
                 <p className="text-[10px] opacity-30 font-mono mt-1">
-                  {logs[0] ? new Date(logs[0].date).toLocaleDateString('pt-BR') : ''}
+                  {filteredLogs[0] ? `${filteredLogs[0].date.split('-').reverse().join('/')} às ${filteredLogs[0].entry_time}` : ''}
                 </p>
               </div>
             </div>
 
-            {/* Date Filters */}
             <div className="flex-1 border border-white/10 p-6 rounded-3xl bg-white/5 backdrop-blur-xl">
               <div className="flex items-center gap-2 mb-4">
                 <History size={14} className="opacity-40" />
@@ -261,13 +290,22 @@ export default function App() {
             </div>
           </div>
 
-          {/* Logs Table */}
+          <div className="mb-8 relative max-w-md">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 opacity-20" size={18} />
+            <input 
+              type="text"
+              placeholder="Pesquisar por visitante..."
+              value={searchTerm}
+              onChange={e => setSearchTerm(e.target.value)}
+              className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 pl-12 pr-6 focus:border-white/30 outline-none transition-all text-sm"
+            />
+          </div>
+
           <div className="border border-white/10 rounded-[2rem] overflow-hidden bg-black/20 backdrop-blur-md shadow-2xl">
             <div className="grid grid-cols-12 gap-4 p-6 border-b border-white/10 bg-white/5 text-[10px] uppercase tracking-[0.2em] font-mono opacity-40">
               <div className="col-span-3">Visitante</div>
-              <div className="col-span-2">Data / Horário</div>
-              <div className="col-span-2">Atividade</div>
-              <div className="col-span-2">Impacto / Próximos</div>
+              <div className="col-span-3">Data / Horário</div>
+              <div className="col-span-3">Atividade</div>
               <div className="col-span-2 text-center">Situação</div>
               <div className="col-span-1 text-right">Ações</div>
             </div>
@@ -275,82 +313,198 @@ export default function App() {
             <div className="divide-y divide-white/5">
               {isLoading ? (
                 <div className="p-20 text-center opacity-30 font-serif italic text-xl">Sincronizando dados...</div>
-              ) : filteredLogs.length === 0 ? (
-                <div className="p-20 text-center opacity-30 font-serif italic text-xl">Nenhum registro no período.</div>
+              ) : currentLogs.length === 0 ? (
+                <div className="p-20 text-center opacity-30 font-serif italic text-xl">Nenhum registro encontrado.</div>
               ) : (
-                filteredLogs.map((log) => (
+                currentLogs.map((log) => (
                   <motion.div 
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     key={log.id} 
-                    className="grid grid-cols-12 gap-4 p-6 hover:bg-white/[0.03] transition-colors group"
+                    onClick={() => setSelectedLog(log)}
+                    className="grid grid-cols-12 gap-4 p-6 hover:bg-white/[0.03] transition-colors group cursor-pointer"
                   >
                     <div className="col-span-3 flex flex-col justify-center">
                       <span className="font-bold text-xl tracking-tight text-white">{log.visitor_name}</span>
                     </div>
-                    <div className="col-span-2 flex flex-col justify-center font-mono text-[11px]">
+                    <div className="col-span-3 flex flex-col justify-center font-mono text-[11px]">
                       <div className="flex items-center gap-2 opacity-40">
                         <Calendar size={12} />
-                        {new Date(log.date).toLocaleDateString('pt-BR')}
+                        {log.date.split('-').reverse().join('/')}
                       </div>
                       <div className="flex items-center gap-2 mt-1.5 text-white/80">
                         <Clock size={12} className="opacity-40" />
                         {log.entry_time} {log.exit_time ? `→ ${log.exit_time}` : ''}
                       </div>
                     </div>
-                    <div className="col-span-2 flex flex-col justify-center">
-                      <p className="text-sm line-clamp-2 opacity-60 leading-relaxed">{log.activity}</p>
-                    </div>
-                    <div className="col-span-2 flex flex-col justify-center gap-2">
-                      {log.impact && (
-                        <div className="flex items-start gap-2 text-[10px]">
-                          <AlertTriangle size={12} className="mt-0.5 text-amber-500/60" />
-                          <span className="opacity-40 italic">{log.impact}</span>
-                        </div>
-                      )}
-                      {log.next_steps && (
-                        <div className="flex items-start gap-2 text-[10px]">
-                          <ArrowRight size={12} className="mt-0.5 opacity-20" />
-                          <span className="opacity-40">{log.next_steps}</span>
-                        </div>
-                      )}
+                    <div className="col-span-3 flex flex-col justify-center">
+                      <p className="text-sm line-clamp-1 opacity-60 leading-relaxed">{log.activity}</p>
                     </div>
                     <div className="col-span-2 flex items-center justify-center">
                       <button
-                        onClick={() => handleValidate(log.id, log.validated)}
-                        className={`flex items-center gap-2 px-4 py-2 rounded-full text-[10px] font-bold uppercase tracking-widest transition-all ${
+                        onClick={(e) => handleValidate(e, log.id, log.validated)}
+                        className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-[9px] font-bold uppercase tracking-widest transition-all ${
                           log.validated 
                           ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' 
                           : 'bg-red-500/10 text-red-400 border border-red-500/20'
-                        } ${isManagerMode ? 'hover:scale-105 cursor-pointer' : 'cursor-default'}`}
+                        } ${isManagerMode ? 'hover:scale-105 cursor-pointer' : 'cursor-default opacity-60'}`}
                       >
-                        {log.validated ? <CheckCircle2 size={14} /> : <X size={14} />}
-                        {log.validated ? 'Validada' : 'Não Validada'}
+                        {log.validated ? <CheckCircle2 size={12} /> : <X size={12} />}
+                        <span className="hidden md:inline">{log.validated ? 'Validada' : 'Pendente'}</span>
                       </button>
                     </div>
-                    <div className="col-span-1 flex items-center justify-end">
-                      <button 
-                        onClick={() => handleDelete(log.id)}
-                        className={`p-3 rounded-2xl transition-all ${
-                          isManagerMode 
-                          ? 'hover:bg-red-500 text-red-500 hover:text-white opacity-100' 
-                          : 'hover:bg-white/10 text-white/20 hover:text-white opacity-0 group-hover:opacity-100'
-                        }`}
-                      >
-                        <Trash2 size={18} />
-                      </button>
+                    <div className="col-span-1 flex items-center justify-end gap-2">
+                      {isManagerMode && (
+                        <button 
+                          onClick={(e) => handleDelete(e, log.id)}
+                          className="p-2 rounded-xl hover:bg-red-500 text-red-500 hover:text-white transition-all"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      )}
+                      <div className="p-2 opacity-20 group-hover:opacity-100 transition-opacity">
+                        <Eye size={16} />
+                      </div>
                     </div>
                   </motion.div>
                 ))
               )}
             </div>
           </div>
+
+          {totalPages > 1 && (
+            <div className="mt-8 flex items-center justify-center gap-4">
+              <button 
+                disabled={currentPage === 1}
+                onClick={() => setCurrentPage(prev => prev - 1)}
+                className="p-3 rounded-2xl border border-white/10 hover:bg-white/5 disabled:opacity-20 disabled:hover:bg-transparent transition-all"
+              >
+                <ChevronLeft size={20} />
+              </button>
+              <div className="flex items-center gap-2">
+                {[...Array(totalPages)].map((_, i) => (
+                  <button
+                    key={i + 1}
+                    onClick={() => setCurrentPage(i + 1)}
+                    className={`w-10 h-10 rounded-xl font-mono text-xs transition-all ${
+                      currentPage === i + 1 
+                      ? 'bg-white text-black font-bold' 
+                      : 'hover:bg-white/5 text-white/40'
+                    }`}
+                  >
+                    {i + 1}
+                  </button>
+                ))}
+              </div>
+              <button 
+                disabled={currentPage === totalPages}
+                onClick={() => setCurrentPage(prev => prev + 1)}
+                className="p-3 rounded-2xl border border-white/10 hover:bg-white/5 disabled:opacity-20 disabled:hover:bg-transparent transition-all"
+              >
+                <ChevronRight size={20} />
+              </button>
+            </div>
+          )}
         </main>
 
-        {/* Password Modal */}
+        <AnimatePresence>
+          {selectedLog && (
+            <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
+              <motion.div 
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                onClick={() => setSelectedLog(null)}
+                className="absolute inset-0 bg-black/90 backdrop-blur-xl"
+              />
+              <motion.div 
+                initial={{ scale: 0.9, opacity: 0, y: 20 }}
+                animate={{ scale: 1, opacity: 1, y: 0 }}
+                exit={{ scale: 0.9, opacity: 0, y: 20 }}
+                className="relative w-full max-w-2xl bg-[#0a0a0b] border border-white/10 rounded-[3rem] overflow-hidden shadow-2xl"
+              >
+                <div className="flex justify-between items-center p-10 border-b border-white/5">
+                  <div>
+                    <h2 className="text-3xl font-bold text-white tracking-tight">DETALHES DO ACESSO</h2>
+                    <p className="text-[10px] uppercase tracking-widest opacity-30 font-mono mt-1">Visualização de Registro</p>
+                  </div>
+                  <button onClick={() => setSelectedLog(null)} className="p-4 hover:bg-white/5 rounded-full transition-colors">
+                    <X size={24} />
+                  </button>
+                </div>
+
+                <div className="p-10 space-y-8">
+                  <div className="grid grid-cols-2 gap-8">
+                    <div className="col-span-2">
+                      <p className="text-[10px] uppercase tracking-widest font-mono mb-2 opacity-30">Visitante</p>
+                      <p className="text-2xl font-bold text-white">{selectedLog.visitor_name}</p>
+                    </div>
+
+                    <div>
+                      <p className="text-[10px] uppercase tracking-widest font-mono mb-2 opacity-30">Data</p>
+                      <p className="text-lg text-white/80">{selectedLog.date.split('-').reverse().join('/')}</p>
+                    </div>
+
+                    <div>
+                      <p className="text-[10px] uppercase tracking-widest font-mono mb-2 opacity-30">Horário</p>
+                      <p className="text-lg text-white/80">{selectedLog.entry_time} {selectedLog.exit_time ? `→ ${selectedLog.exit_time}` : ''}</p>
+                    </div>
+
+                    <div className="col-span-2">
+                      <p className="text-[10px] uppercase tracking-widest font-mono mb-2 opacity-30">Atividade Realizada</p>
+                      <div className="bg-white/5 border border-white/10 rounded-2xl p-6 text-white/70 leading-relaxed">
+                        {selectedLog.activity}
+                      </div>
+                    </div>
+
+                    <div>
+                      <p className="text-[10px] uppercase tracking-widest font-mono mb-2 opacity-30">Impacto Gerado</p>
+                      <p className="text-lg text-white/80">{selectedLog.impact || 'Nenhum impacto registrado'}</p>
+                    </div>
+
+                    <div>
+                      <p className="text-[10px] uppercase tracking-widest font-mono mb-2 opacity-30">Próximos Passos</p>
+                      <p className="text-lg text-white/80">{selectedLog.next_steps || 'Nenhum próximo passo'}</p>
+                    </div>
+
+                    <div className="col-span-2 flex items-center gap-4 pt-4 border-t border-white/5">
+                      <button
+                        onClick={(e) => {
+                          handleValidate(e as any, selectedLog.id, selectedLog.validated);
+                          setSelectedLog({...selectedLog, validated: selectedLog.validated ? 0 : 1});
+                        }}
+                        className={`flex items-center gap-2 px-4 py-2 rounded-full text-[10px] font-bold uppercase tracking-widest transition-all ${
+                          selectedLog.validated 
+                          ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' 
+                          : 'bg-red-500/10 text-red-400 border border-red-500/20'
+                        } ${isManagerMode ? 'hover:scale-105 cursor-pointer' : 'cursor-default opacity-60'}`}
+                      >
+                        {selectedLog.validated ? <CheckCircle2 size={14} /> : <X size={14} />}
+                        {selectedLog.validated ? 'Validada' : 'Pendente (Validar)'}
+                      </button>
+                      <p className="text-[10px] font-mono opacity-20 uppercase tracking-widest">
+                        Registrado em: {new Date(selectedLog.created_at).toLocaleString('pt-BR')}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="pt-6">
+                    <button 
+                      onClick={() => setSelectedLog(null)}
+                      className="w-full bg-white/5 border border-white/10 text-white py-6 rounded-2xl font-bold uppercase tracking-[0.2em] text-xs hover:bg-white/10 transition-all"
+                    >
+                      Fechar Visualização
+                    </button>
+                  </div>
+                </div>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>
+
         <AnimatePresence>
           {showPasswordModal && (
-            <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            <div className="fixed inset-0 z-[120] flex items-center justify-center p-4">
               <motion.div 
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
@@ -402,7 +556,6 @@ export default function App() {
           )}
         </AnimatePresence>
 
-        {/* Form Modal (Existing) */}
         <AnimatePresence>
           {isFormOpen && (
             <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
@@ -441,7 +594,7 @@ export default function App() {
                           value={formData.visitor_name}
                           onChange={e => setFormData({...formData, visitor_name: e.target.value})}
                           className="w-full bg-white/5 border border-white/10 rounded-2xl py-5 pl-16 pr-6 focus:border-white/30 outline-none transition-all text-white"
-                          placeholder="Nome completo"
+                          placeholder="Nome e Sobrenome"
                         />
                       </div>
                     </div>
@@ -529,7 +682,6 @@ export default function App() {
           )}
         </AnimatePresence>
 
-        {/* Footer */}
         <footer className="p-10 border-t border-white/5 mt-20 flex justify-between items-center opacity-20 text-[9px] uppercase tracking-[0.4em] font-mono">
           <div>© 2026 CPD INFRASTRUCTURE SECURITY</div>
           <div className="flex items-center gap-4">
